@@ -125,6 +125,16 @@ def teleop_loop(
         for motor, value in action.items():
             print(f"{motor:<{display_len}} | {value:>7.2f}")
         print(f"\ntime: {loop_s * 1e3:.2f}ms ({1 / loop_s:.0f} Hz)")
+        
+        #################################
+        # 打印 robot_joints 对应关节名和数值
+        #  test #
+        # print("\nRobot Joints:")
+        # for i, val in enumerate(robot_joints, start=1):
+        #     print(f"  joint_{i}: {val:>8.2f}")
+
+        # print (ee_pose)
+        ##################################
 
         if duration is not None and time.perf_counter() - start >= duration:
             return
