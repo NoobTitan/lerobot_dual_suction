@@ -19,6 +19,7 @@ import logging
 import time
 from functools import cached_property
 from typing import Any , Dict
+import math
 
 import numpy as np
 import math
@@ -327,9 +328,9 @@ class EliteCS66(Robot):
     
     @property
     def _motor_ft(self) -> dict[str, type]:
-        data = self.robot.rt.get_output_data()
-        joint_states = data.actual_joint_positions
-        motors = {f"joint_{i+1}.pos": float for i in range(len(joint_states))}
+        # data = self.robot.rt.get_output_data()
+        # joint_states = data.actual_joint_positions
+        motors = {f"joint_{i+1}.pos": float for i in range(6)}
         motors["end_effector.pos"] = float # 定义末端类型
         # if joint_states is None:
         #     raise RuntimeError(f"{self} failed to get joint states.")
