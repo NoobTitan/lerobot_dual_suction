@@ -618,7 +618,7 @@ class RealSenseDepthCamera(RealSenseCamera):
         depth_map = (np.asanyarray(depth_frame.get_data()) * scaler).astype(np.uint16)  # unit in mm.
 
         color_image_processed = self._postprocess_image(color_image_raw, color_mode)
-        depth_map_processed = self._postprocess_image(depth_map, depth_frame=True)
+        depth_map_processed = self._postprocess_image(depth_map, depth_frame=True)[..., None]
 
         read_duration_ms = (time.perf_counter() - start_time) * 1e3
         logger.debug(f"{self} read took: {read_duration_ms:.1f}ms")
