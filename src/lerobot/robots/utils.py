@@ -65,6 +65,10 @@ def make_robot_from_config(config: RobotConfig) -> Robot:
         from tests.mocks.mock_robot import MockRobot
 
         return MockRobot(config)
+    elif config.type == "cs66":
+        from .cs66.robot_cs66 import EliteCS66
+
+        return EliteCS66(config)
     else:
         raise ValueError(config.type)
 
