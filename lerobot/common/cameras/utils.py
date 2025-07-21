@@ -32,11 +32,14 @@ def make_cameras_from_configs(camera_configs: dict[str, CameraConfig]) -> dict[s
             from .opencv import OpenCVCamera
 
             cameras[key] = OpenCVCamera(cfg)
-
         elif cfg.type == "intelrealsense":
             from .realsense.camera_realsense import RealSenseCamera
 
             cameras[key] = RealSenseCamera(cfg)
+        elif cfg.type == "intelrealsensedepth":
+            from .realsense.camera_realsense import RealSenseDepthCamera
+
+            cameras[key] = RealSenseDepthCamera(cfg)
         else:
             raise ValueError(f"The motor type '{cfg.type}' is not valid.")
 

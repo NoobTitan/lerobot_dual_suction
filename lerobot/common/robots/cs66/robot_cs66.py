@@ -154,7 +154,23 @@ class EliteCS66(Robot):
         # Capture images from cameras
         for cam_key, cam in self.cameras.items():
             start = time.perf_counter()
-            obs_dict[cam_key] = cam.async_read()
+
+            frame = cam.async_read()
+            if isinstance(frame, np.ndarray):
+                obs_dict[cam_key] = frame
+            elif isinstance(frame, dict):  # multiple streams from this camera.
+                update = {}
+                for k, v in frame.items():
+                    if k == "[color]":
+                        k = cam_key  # backward compability: keep the name of RGB stream not changed.
+                    else:
+                        k = f"{cam_key}.{k}"
+                    update[k] = v
+                    assert isinstance(v, np.ndarray)
+                obs_dict.update(update)
+            else:
+                raise RuntimeError("Unknown data type from camera backend.")
+
             dt_ms = (time.perf_counter() - start) * 1e3
             logger.debug(f"{self} read {cam_key}: {dt_ms:.1f}ms")
 
