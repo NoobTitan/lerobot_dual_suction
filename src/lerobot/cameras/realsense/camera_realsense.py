@@ -623,7 +623,7 @@ class RealSenseDepthCamera(RealSenseCamera):
         read_duration_ms = (time.perf_counter() - start_time) * 1e3
         logger.debug(f"{self} read took: {read_duration_ms:.1f}ms")
 
-        return {"[color]": color_image_processed, "depth": depth_map_processed}
+        return {None: color_image_processed, "depth": depth_map_processed}  # see also: self.streams, the names should match.
 
     def async_read(self, timeout_ms: float = 200) -> Dict[str, np.ndarray]:
         """
@@ -668,3 +668,9 @@ class RealSenseDepthCamera(RealSenseCamera):
 
         return frame
 
+    @property
+    def streams(self):
+        return {
+            None: (self.height, self.width, 3),  # RGB888
+            "depth": (self.height, self.width, 1),  # Z16
+        }
