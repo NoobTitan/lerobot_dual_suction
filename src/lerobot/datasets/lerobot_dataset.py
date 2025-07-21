@@ -874,10 +874,13 @@ class LeRobotDataset(torch.utils.data.Dataset):
         parquet_files = list(self.root.rglob("*.parquet"))
         assert len(parquet_files) == self.num_episodes
 
-        # delete images
-        img_dir = self.root / "images"
-        if img_dir.is_dir():
-            shutil.rmtree(self.root / "images")
+        # delete video images
+        for key in self.features:
+            if self.features[key]["dtype"] == "video":
+                img_dir = self.root / "images" / key
+
+                if img_dir.is_dir():
+                    shutil.rmtree(self.root / "images")
 
         if not episode_data:  # Reset the buffer
             self.episode_buffer = self.create_episode_buffer()
