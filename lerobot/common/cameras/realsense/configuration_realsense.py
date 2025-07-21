@@ -18,6 +18,7 @@ from ..configs import CameraConfig, ColorMode, Cv2Rotation
 
 
 @CameraConfig.register_subclass("intelrealsense")
+@CameraConfig.register_subclass("intelrealsensedepth")
 @dataclass
 class RealSenseCameraConfig(CameraConfig):
     """Configuration class for Intel RealSense cameras.

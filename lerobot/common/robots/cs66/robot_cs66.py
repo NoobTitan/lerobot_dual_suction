@@ -161,7 +161,7 @@ class EliteCS66(Robot):
             elif isinstance(frame, dict):  # multiple streams from this camera.
                 update = {}
                 for k, v in frame.items():
-                    if k == "[color]":
+                    if k is None:
                         k = cam_key  # backward compability: keep the name of RGB stream not changed.
                     else:
                         k = f"{cam_key}.{k}"
@@ -280,9 +280,18 @@ class EliteCS66(Robot):
     
     @property
     def _cameras_ft(self) -> dict[str, tuple]:
-        return {
-            cam: (self.config.cameras[cam].height, self.config.cameras[cam].width, 3) for cam in self.cameras
-        }
+        ft = {}
+
+        for cam in self.cameras:
+            if hasattr(self.cameras[cam], "streams"):
+                streams = self.cameras[cam].streams
+                for s in streams:
+                    s_name = f"{cam}.{s}" if s is not None else cam
+                    ft[s_name] = streams[s]
+            else:
+                ft[cam] = (self.config.cameras[cam].height, self.config.cameras[cam].width, 3)
+
+        return ft
     
     @property
     def _motor_ft(self) -> dict[str, type]:
