@@ -52,7 +52,9 @@ def image_array_to_pil_image(image_array: np.ndarray, range_check: bool = True) 
             f"The image has {image_array.shape[-1]} channels, but 1 or 3 is required for now."
         )
 
-    if image_array.dtype == np.uint16 and image_array.shape[-1] == 1:
+    if image_array.dtype == np.uint16:
+        if image_array.shape[-1] != 1:
+            raise ValueError("PIL backend does not support 16bit images with more than 1 channel.")
         image_array = image_array[..., 0]
     elif image_array.dtype != np.uint8:
         if range_check:
