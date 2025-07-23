@@ -69,6 +69,10 @@ def make_robot_from_config(config: RobotConfig) -> Robot:
         from .cs66.robot_cs66 import EliteCS66
 
         return EliteCS66(config)
+    elif config.type == "fr5":
+        from .fr5.robot_fr5 import FairinoV5
+
+        return FairinoV5(config)
     else:
         raise ValueError(config.type)
 
@@ -102,10 +106,10 @@ def ensure_safe_goal_position(
                 "safe goal_pos": safe_goal_pos,
             }
 
-    if warnings_dict:
-        logging.warning(
-            "Relative goal position magnitude had to be clamped to be safe.\n"
-            f"{pformat(warnings_dict, indent=4)}"
-        )
+    # if warnings_dict:
+    #     logging.warning(
+    #         "Relative goal position magnitude had to be clamped to be safe.\n"
+    #         f"{pformat(warnings_dict, indent=4)}"
+    #     )
 
     return safe_goal_positions

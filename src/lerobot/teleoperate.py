@@ -71,6 +71,7 @@ from lerobot.robots import (  # noqa: F401
     so100_follower,
     so101_follower,
     cs66,
+    fr5,
 )
 from lerobot.teleoperators import (  # noqa: F401
     Teleoperator,
