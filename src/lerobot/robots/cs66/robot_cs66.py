@@ -21,6 +21,7 @@ from functools import cached_property
 from typing import Any , Dict
 
 import numpy as np
+import math
 from .robot import RobotController
 
 from lerobot.cameras.utils import make_cameras_from_configs
@@ -69,18 +70,30 @@ class EliteCS66(Robot):
         self._calibrated = True
 
 
+    def set_pose(self, target_joint_positions):    
+        self.register.input_double_register0 = target_joint_positions[0]  
+        self.register.input_double_register1 = target_joint_positions[1]  
+        self.register.input_double_register2 = target_joint_positions[2]  
+        self.register.input_double_register3 = target_joint_positions[3]  
+        self.register.input_double_register4 = target_joint_positions[4]  
+        self.register.input_double_register5 = target_joint_positions[5] 
+        self.robot.rt.set_input(self.register)
+
     # cs66和相机连接
     def connect(self) -> None:
         # 连接机器人并开启解释器模式
         self.robot.connect()
-        self.robot.sendCMD("   interpreter_mode(clearQueueOnEnter = True, clearOnEnd = True)")
         # 初始化数字输DO-0为 False 吸盘为关闭状态
         # 以下命令分别使用了30001，30020，29999和40011端口功能，再次检验链接正常
-        self.robot.interpreter("set_standard_digital_out(0, False)")
+        self.robot.sendCMD("   set_standard_digital_out(0, False)")
         time.sleep(0.01)
         # 29999端口功能测试报错，但是暂时没有用到。需要用时咨询艾利特技术支持
         # rtn = self.robot.dashboard_shell("help")
         data = self.robot.rt.get_output_data()
+        self.register = self.robot.rt.input_subscribe('input_double_register0,input_double_register1,input_double_register2,input_double_register3,input_double_register4,input_double_register5') #输入订阅：float型输入寄存器0和1，寄存器1用于改变机器人的y坐标
+        self.set_pose(data.actual_joint_positions)
+        self.robot.servo_start()
+
         sucker_status = data.actual_digital_output_bits
         joint_states = data.actual_joint_positions
         # print( "sucker status:", sucker_status, "joint states:", joint_states)
@@ -176,21 +189,52 @@ class EliteCS66(Robot):
     def send_action(self, action: dict[str, float]) -> dict[str, float]:
         if not self.is_connected:
             raise DeviceNotConnectedError(f"{self} is not connected.")
-
-        ee_pose = action.get("end_effector.pos", None)
-        joint_keys = [f"joint_{i+1}.pos" for i in range(6)]
-        # 发送给机器人的关节命令
-        cmd_robot_joints = [
-            np.deg2rad(
-                normalize_angle_deg(float(action[key]) + self.config.joint_offsets.get(key.split('.')[0], 0.0))
-            )
-            for key in joint_keys if key in action
-        ]
-
-        # 需要重新将机器人关节状态重新构建成字典格式
+        
         data = self.robot.rt.get_output_data()
         if data is None:
             raise RuntimeError(f"{self} failed to get robot state data.")
+
+        ee_pose = action.get("end_effector.pos", None)
+        joint_keys = [f"joint_{i+1}.pos" for i in range(6)]
+
+        # 发送给机器人的关节命令
+        goal_present_pos = {}
+        joint_states = data.actual_joint_positions  # 当前关节状态，单位：弧度
+        if joint_states is None:
+            raise RuntimeError(f"{self} failed to get joint states.")
+        
+        for i, key in enumerate(joint_keys):
+            if key in action:
+                goal_deg = float(action[key])+ self.config.joint_offsets.get(key.split('.')[0], 0.0)
+                present_deg = np.rad2deg(joint_states[i])  # 当前角度从弧度转为角度
+                goal_present_pos[key] = (goal_deg, present_deg)
+        #TODO
+
+        # 应用安全限制（单位：角度）
+        safe_goal_positions = ensure_safe_goal_position(
+            goal_present_pos, 
+            max_relative_target={
+            "joint_1.pos": 150 * self.config.dt * 10,
+            "joint_2.pos": 150 * self.config.dt * 10,
+            "joint_3.pos": 180 * self.config.dt * 10,
+            "joint_4.pos": 230 * self.config.dt * 10,
+            "joint_5.pos": 230 * self.config.dt * 10,
+            "joint_6.pos": 230 * self.config.dt * 10,
+        })
+
+        # 替换 action 中的目标值
+        for key in safe_goal_positions:
+            action[key] = safe_goal_positions[key]
+        
+        # 发送给机器人的关节命令
+        cmd_robot_joints = [
+            math.radians(
+                normalize_angle_deg(float(action[key]))
+            )
+            for key in joint_keys if key in action
+        ]
+        print(cmd_robot_joints)
+        self.set_pose(cmd_robot_joints)
     
         # === 吸盘控制逻辑 ===
         suction_state = float(data.actual_digital_output_bits & 0b1)  # 0 或 1，转成 float
@@ -198,10 +242,8 @@ class EliteCS66(Robot):
             target_suction = ee_pose < 50.0  # 小于 50 表示吸附
             # 如果目标状态和实际状态不一致，发出切换命令
             if suction_state != float(target_suction):
-                self.robot.interpreter(f"set_standard_digital_out(0, {str(target_suction)})")
+                self.robot.sendSecCMD("   set_standard_digital_out(0, {})".format(target_suction))
                 self._last_suction_command = target_suction
-                time.sleep(0.05)
-
 
         # === 增加吸与吹的逻辑 ===
         # suction_state = float(data.actual_digital_output_bits & 0b1)  # 0 或 1，转成 float
@@ -243,13 +285,11 @@ class EliteCS66(Robot):
         # command_dict["end_effector.pos"] = end_effector_val
 
         # 调试不启动 先看测试输出的值
-        self.robot.interpreter("skipbuffer")
-        self.robot.interpreter("servoj({}, t={}, lookahead_time={}, gain={})".format(
-            cmd_robot_joints,
-            self.config.dt,
-            self.config.lookahead_time,
-            self.config.gain,
-        ))
+        # self.robot.sendCMD("   servoj(register, t={}, lookahead_time={}, gain={})".format(
+        #     self.config.dt,
+        #     self.config.lookahead_time,
+        #     self.config.gain,
+        # ))
 
         # 目前没有设置安全限值，执行的输入值和输出值可以看作一致
         return action

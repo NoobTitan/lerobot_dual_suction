@@ -35,7 +35,6 @@ def rt_connect(ip):
     rt.connect()
     rt.version_check()
     rt.controller_version()
-    rt.output_subscribe
     rt.output_subscribe('actual_digital_output_bits,actual_joint_positions,actual_TCP_pose', 125)
     print("RTSI successfully executed")
     return (True, rt)
@@ -45,6 +44,7 @@ def rt_connect(ip):
 class RobotController():
     def __init__(self, robot_ip: str = "192.168.101.11"):
         self.robot_ip = robot_ip
+        self._servoMode = False
 
     # 连接机器人端口    
     def connect(self):
@@ -84,6 +84,16 @@ class RobotController():
             sendStr = 'def a():\n{}\nend'.format(content)
             try:
                 jdata = self.sock_30001.sendall(bytes(sendStr, "utf-8"))
+                print(sendStr)
+                ret = self.sock_30001.recv(1024)
+            except Exception as e:
+                return (False, None, None)
+            
+    def sendSecCMD(self, content):
+        if self.conSuc_30001 and self.sock_30001 is not None:
+            sendStr = 'sec b():\n{}\nend'.format(content)
+            try:
+                jdata = self.sock_30001.sendall(bytes(sendStr, "utf-8"))
                 ret = self.sock_30001.recv(1024)
             except Exception as e:
                 return (False, None, None)
@@ -106,6 +116,32 @@ class RobotController():
             recvData = recvData.decode()
             return recvData.replace('\n', '').replace('\r', '')
         
+    def servo_start(self):
+        self._servoMode = True  # read_input_bool_register(0)
+        dt = 0.011
+        self.sock_30001.sendall(bytes(f"""
+def servoJ():
+    while True: 
+        reg0 = read_input_float_register(0)
+        reg1 = read_input_float_register(1)
+        reg2 = read_input_float_register(2)
+        reg3 = read_input_float_register(3)
+        reg4 = read_input_float_register(4)
+        reg5 = read_input_float_register(5)
+        jtmp = [reg0, reg1, reg2, reg3, reg4, reg5]
+        servoj(jtmp, t={dt}, lookahead_time={dt * 8}, gain=300)
+end
+""", "utf-8"))
+
+    def servo_stop(self):
+        self._servoMode = False
+
+    # def servoJ(self, dt=0.008, lookahead_time=0.03, gain=300):
+    #     while self._servoMode:
+            
+    #         pass
+
+
     # def servoJ(self, joint_positions, velocity=0.5, acceleration=0.5, dt=0.002, lookahead_time=0.2, gain=100):
     #     if self.conSuc_30020 and self.sock_30020 is not None:
     #         joint_positions = [round(joint * 180 / 3.1415926, 2) for joint in joint_positions]

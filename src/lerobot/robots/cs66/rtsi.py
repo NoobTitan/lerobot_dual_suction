@@ -5,7 +5,6 @@ import sys
 import logging
 
 from . import serialize
-
 DEFAULT_TIMEOUT = 10.0
 
 LOGNAME = 'rtsi'
@@ -82,9 +81,6 @@ class rtsi(object):
         version = self.__sendAndReceive(cmd)
         if version:
             _log.info('Controller version: ' + str(version.major) + '.' + str(version.minor) + '.' + str(version.bugfix)+ '.' + str(version.build))
-            if version.major == 3 and version.minor <= 2 and version.bugfix < 19171:
-                _log.error("Please upgrade your controller to minimally version 2.10")
-                sys.exit()
             return version.major, version.minor, version.bugfix, version.build
         return None, None, None, None
 
@@ -329,8 +325,6 @@ class rtsi(object):
             _log.error('RTSIE_TEXT_MESSAGE: No payload')
             return None
         if(self.__protocolVersion == RTSI_PROTOCOL_VERSION_1):
-            msg = serialize.MessageV1.unpack(payload)
-        else:
             msg = serialize.Message.unpack(payload)
 
         if(msg.level == serialize.Message.EXCEPTION_MESSAGE or

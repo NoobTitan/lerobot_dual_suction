@@ -30,19 +30,6 @@ class ReturnValue(object):
         rmd.success = bool(struct.unpack_from('>B', buf)[0])
         return rmd
 
-class MessageV1(object):
-    @staticmethod
-    def unpack(buf):
-        rmd = Message() # use V2 message object
-        offset = 0
-        rmd.level = struct.unpack_from(">B", buf, offset)[0]
-        offset = offset + 1
-        rmd.message = str(buf[offset:])
-        rmd.source = ""
-
-        return rmd
-
-
 class Message(object):
     __slots__ = ['level', 'message', 'source']
     EXCEPTION_MESSAGE = 0
