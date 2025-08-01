@@ -330,7 +330,7 @@ def record(cfg: RecordConfig) -> LeRobotDataset:
     robot.connect()
     if teleop is not None:
         teleop.connect()
-        sync_pose_slow(robot, teleop, cfg.dataset.fps)
+        sync_pose_slow(teleop, robot, cfg.dataset.fps)
 
     listener, events = init_keyboard_listener()
 
