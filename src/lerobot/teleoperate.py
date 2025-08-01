@@ -88,6 +88,7 @@ from lerobot.teleoperators import (  # noqa: F401
 from lerobot.utils.robot_utils import busy_wait
 from lerobot.utils.utils import init_logging, move_cursor_up
 from lerobot.utils.visualization_utils import _init_rerun, log_rerun_data
+from lerobot.utils.safety import sync_pose_slow
 
 
 @dataclass
@@ -107,6 +108,9 @@ def teleop_loop(
 ):
     display_len = max(len(key) for key in robot.action_features)
     start = time.perf_counter()
+
+    sync_pose_slow(teleop, robot, fps)
+
     while True:
         loop_start = time.perf_counter()
         action = teleop.get_action()

@@ -113,6 +113,7 @@ from lerobot.utils.utils import (
     log_say,
 )
 from lerobot.utils.visualization_utils import _init_rerun, log_rerun_data
+from lerobot.utils.safety import sync_pose_slow
 
 
 @dataclass
@@ -329,6 +330,7 @@ def record(cfg: RecordConfig) -> LeRobotDataset:
     robot.connect()
     if teleop is not None:
         teleop.connect()
+        sync_pose_slow(robot, teleop, cfg.dataset.fps)
 
     listener, events = init_keyboard_listener()
 
