@@ -414,9 +414,10 @@ def hw_to_dataset_features(
             "names": list(joint_fts),
         }
 
+    cam_dtype = "video" if use_video else "image"
     for key, shape in cam_fts.items():
         features[f"{prefix}.images.{key}"] = {
-            "dtype": "video" if use_video else "image",
+            "dtype": cam_dtype if not key.endswith(".depth") else "image",
             "shape": shape,
             "names": ["height", "width", "channels"],
         }

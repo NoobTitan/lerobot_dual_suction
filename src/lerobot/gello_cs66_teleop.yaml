@@ -1,0 +1,25 @@
+robot:
+  type: cs66
+  ip: 192.168.101.11
+
+  cameras:
+    images.top:
+      type: intelrealsense
+      serial_number_or_name: 346122071690
+      width: 640
+      height: 480
+      fps: 30
+    images.wrist.top:
+      type: opencv
+      index_or_path: 8
+      width: 640
+      height: 480
+      fps: 30
+
+
+teleop:
+  type: gello
+  port: /dev/ttyUSB0
+  id: main_gello
+
+display_data: true

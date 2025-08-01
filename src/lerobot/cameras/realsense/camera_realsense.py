@@ -19,7 +19,7 @@ Provides the RealSenseCamera class for capturing frames from Intel RealSense cam
 import logging
 import time
 from threading import Event, Lock, Thread
-from typing import Any
+from typing import Any, Dict
 
 import cv2
 import numpy as np
@@ -554,3 +554,123 @@ class RealSenseCamera(Camera):
             self.rs_profile = None
 
         logger.info(f"{self} disconnected.")
+
+
+class RealSenseDepthCamera(RealSenseCamera):
+    """ Read synchronized depth and color image from intelrealsense device. """
+    def __init__(self, config: RealSenseCameraConfig, align_to=rs.stream.color):
+        super().__init__(config)
+
+        self.align_to = align_to
+        self.align = rs.align(self.align_to)
+
+    def _configure_rs_pipeline_config(self, rs_config):
+        """Creates and configures the RealSense pipeline configuration object."""
+        rs.config.enable_device(rs_config, self.serial_number)
+
+        if self.width and self.height and self.fps:
+            rs_config.enable_stream(
+                rs.stream.color, self.capture_width, self.capture_height, rs.format.rgb8, self.fps
+            )
+            rs_config.enable_stream(
+                rs.stream.depth, self.capture_width, self.capture_height, rs.format.z16, self.fps
+            )
+        else:
+            rs_config.enable_stream(rs.stream.color)
+            rs_config.enable_stream(rs.stream.depth)
+
+    def read(self, color_mode: ColorMode | None = None, timeout_ms: int = 200) -> Dict[str, np.ndarray]:
+        """
+        Reads a single frame (color+depth) synchronously from the camera.
+
+        This is a blocking call. It waits for a coherent set of frames (color)
+        from the camera hardware via the RealSense pipeline.
+
+        Args:
+            timeout_ms (int): Maximum time in milliseconds to wait for a frame. Defaults to 200ms.
+
+        Returns:
+            np.ndarray: The captured color frame as a NumPy array
+              (height, width, channels), processed according to `color_mode` and rotation.
+
+        Raises:
+            DeviceNotConnectedError: If the camera is not connected.
+            RuntimeError: If reading frames from the pipeline fails or frames are invalid.
+            ValueError: If an invalid `color_mode` is requested.
+        """
+
+        if not self.is_connected:
+            raise DeviceNotConnectedError(f"{self} is not connected.")
+
+        start_time = time.perf_counter()
+
+        ret, frame = self.rs_pipeline.try_wait_for_frames(timeout_ms=timeout_ms)
+
+        if not ret or frame is None:
+            raise RuntimeError(f"{self} read failed (status={ret}).")
+
+        frame = self.align.process(frame)
+        color_frame = frame.get_color_frame()
+        depth_frame = frame.get_depth_frame()
+
+        color_image_raw = np.asanyarray(color_frame.get_data())
+        scaler = depth_frame.get_units() * 1000
+        depth_map = (np.asanyarray(depth_frame.get_data()) * scaler).astype(np.uint16)  # unit in mm.
+
+        color_image_processed = self._postprocess_image(color_image_raw, color_mode)
+        depth_map_processed = self._postprocess_image(depth_map, depth_frame=True)[..., None]
+
+        read_duration_ms = (time.perf_counter() - start_time) * 1e3
+        logger.debug(f"{self} read took: {read_duration_ms:.1f}ms")
+
+        return {None: color_image_processed, "depth": depth_map_processed}  # see also: self.streams, the names should match.
+
+    def async_read(self, timeout_ms: float = 200) -> Dict[str, np.ndarray]:
+        """
+        Reads the latest available frame data (color+depth) asynchronously.
+
+        This method retrieves the most recent color+depth frame captured by the background
+        read thread. It does not block waiting for the camera hardware directly,
+        but may wait up to timeout_ms for the background thread to provide a frame.
+
+        Args:
+            timeout_ms (float): Maximum time in milliseconds to wait for a frame
+                to become available. Defaults to 200ms (0.2 seconds).
+
+        Returns:
+            np.ndarray:
+            The latest captured frame data (color+depth image), processed according to configuration.
+
+        Raises:
+            DeviceNotConnectedError: If the camera is not connected.
+            TimeoutError: If no frame data becomes available within the specified timeout.
+            RuntimeError: If the background thread died unexpectedly or another error occurs.
+        """
+        if not self.is_connected:
+            raise DeviceNotConnectedError(f"{self} is not connected.")
+
+        if self.thread is None or not self.thread.is_alive():
+            self._start_read_thread()
+
+        if not self.new_frame_event.wait(timeout=timeout_ms / 1000.0):
+            thread_alive = self.thread is not None and self.thread.is_alive()
+            raise TimeoutError(
+                f"Timed out waiting for frame from camera {self} after {timeout_ms} ms. "
+                f"Read thread alive: {thread_alive}."
+            )
+
+        with self.frame_lock:
+            frame = self.latest_frame
+            self.new_frame_event.clear()
+
+        if frame is None:
+            raise RuntimeError(f"Internal error: Event set but no frame available for {self}.")
+
+        return frame
+
+    @property
+    def streams(self):
+        return {
+            None: (self.height, self.width, 3),  # RGB888
+            "depth": (self.height, self.width, 1),  # Z16
+        }

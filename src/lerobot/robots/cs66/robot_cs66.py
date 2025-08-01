@@ -19,6 +19,7 @@ import logging
 import time
 from functools import cached_property
 from typing import Any , Dict
+import math
 
 import numpy as np
 import math
@@ -166,7 +167,23 @@ class EliteCS66(Robot):
         # Capture images from cameras
         for cam_key, cam in self.cameras.items():
             start = time.perf_counter()
-            obs_dict[cam_key] = cam.async_read()
+
+            frame = cam.async_read()
+            if isinstance(frame, np.ndarray):
+                obs_dict[cam_key] = frame
+            elif isinstance(frame, dict):  # multiple streams from this camera.
+                update = {}
+                for k, v in frame.items():
+                    if k is None:
+                        k = cam_key  # backward compability: keep the name of RGB stream not changed.
+                    else:
+                        k = f"{cam_key}.{k}"
+                    update[k] = v
+                    assert isinstance(v, np.ndarray)
+                obs_dict.update(update)
+            else:
+                raise RuntimeError("Unknown data type from camera backend.")
+
             dt_ms = (time.perf_counter() - start) * 1e3
             logger.debug(f"{self} read {cam_key}: {dt_ms:.1f}ms")
 
@@ -321,15 +338,24 @@ class EliteCS66(Robot):
     
     @property
     def _cameras_ft(self) -> dict[str, tuple]:
-        return {
-            cam: (self.config.cameras[cam].height, self.config.cameras[cam].width, 3) for cam in self.cameras
-        }
+        ft = {}
+
+        for cam in self.cameras:
+            if hasattr(self.cameras[cam], "streams"):
+                streams = self.cameras[cam].streams
+                for s in streams:
+                    s_name = f"{cam}.{s}" if s is not None else cam
+                    ft[s_name] = streams[s]
+            else:
+                ft[cam] = (self.config.cameras[cam].height, self.config.cameras[cam].width, 3)
+
+        return ft
     
     @property
     def _motor_ft(self) -> dict[str, type]:
-        data = self.robot.rt.get_output_data()
-        joint_states = data.actual_joint_positions
-        motors = {f"joint_{i+1}.pos": float for i in range(len(joint_states))}
+        # data = self.robot.rt.get_output_data()
+        # joint_states = data.actual_joint_positions
+        motors = {f"joint_{i+1}.pos": float for i in range(6)}
         motors["end_effector.pos"] = float # 定义末端类型
         # if joint_states is None:
         #     raise RuntimeError(f"{self} failed to get joint states.")
