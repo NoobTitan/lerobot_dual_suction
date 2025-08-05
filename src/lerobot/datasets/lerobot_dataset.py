@@ -917,7 +917,7 @@ class LeRobotDataset(torch.utils.data.Dataset):
         # Clean up image files for the current episode buffer
         if self.image_writer is not None:
             for cam_key in self.meta.camera_keys:
-                if self.features[key]["dtype"] != "video":
+                if self.features[cam_key]["dtype"] != "video":
                     continue
 
                 img_dir = self._get_image_file_path(
