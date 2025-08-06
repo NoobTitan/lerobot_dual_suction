@@ -14,10 +14,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from ..config import TeleoperatorConfig
 
+from typing import Dict
+
+from lerobot.motors.dynamixel import (
+    DriveMode,
+)
 
 @TeleoperatorConfig.register_subclass("gello")
 @dataclass
@@ -27,6 +32,17 @@ class GelloConfig(TeleoperatorConfig):
     serial_number: str
 
     end_effector_open_pos: float = 50.0
+
+    # This is used during calibration.
+    # /!\ IMPORTANT: Redo calibration if this is changed.
+    joint_inversions: Dict[str, DriveMode] = field(default_factory=lambda: {
+        "joint_1": DriveMode.NON_INVERTED.value,
+        "joint_2": DriveMode.INVERTED.value,
+        "joint_3": DriveMode.INVERTED.value,
+        "joint_4": DriveMode.INVERTED.value,
+        "joint_5": DriveMode.NON_INVERTED.value,
+        "joint_6": DriveMode.NON_INVERTED.value,
+    })
 
     def __post_init__(self):
         self.id = self.serial_number

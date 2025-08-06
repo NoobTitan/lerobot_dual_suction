@@ -173,11 +173,27 @@ class Gello(Teleoperator):
     def is_connected(self) -> bool:
         return self.bus.is_connected
 
+    def check_drive_mode_consistency(self) -> None:
+        drive_mode_consistency = True
+        for motor_id in self.calibration:            
+            drive_mode_consistency &= (self.calibration[motor_id].drive_mode == self.config.joint_inversions[motor_id])
+
+        if not drive_mode_consistency:
+            raise ValueError("`joint_inversions` values in configuration (GelloConfig) mismatch with calibration values, please redo calibration.")
+
     def connect(self, calibrate: bool = True) -> None:
         if self.is_connected:
             raise DeviceAlreadyConnectedError(f"{self} already connected")
 
+        # N.B.: delayed check on drive_mode consistency before connect:
+        # this is because there are combination (teleoperator + robot) specific configurations that is ensured after initializing both side.
+        self.check_drive_mode_consistency()
+
         self.bus.connect()
+        for motor_id in self.bus.motors:
+            # drive mode is handled by software.
+            self.bus.write("Drive_Mode", motor_id, DriveMode.NON_INVERTED.value)
+
         if not self.is_calibrated and calibrate:
             self.calibrate()
 
@@ -193,12 +209,11 @@ class Gello(Teleoperator):
         self.bus.disable_torque()
         for motor in self.bus.motors:
             self.bus.write("Operating_Mode", motor, OperatingMode.EXTENDED_POSITION.value)
-        
-        # 这里控制电机驱动模式，和gello设置gello_agent.py中的joint_signs,先假设和gello中设置相同关节2和4反向
-        self.bus.write("Drive_Mode", "joint_2", DriveMode.INVERTED.value)
-        # self.bus.write("Drive_Mode", "joint_3", DriveMode.INVERTED.value)
-        self.bus.write("Drive_Mode", "joint_4", DriveMode.INVERTED.value)
-        drive_modes = {motor: 1 if motor == "joint_2" or motor == "joint_4" else 0 for motor in self.bus.motors}
+
+        drive_modes = {
+            motor: self.config.joint_inversions.get(motor, DriveMode.NON_INVERTED.value) 
+            for motor in self.bus.motors
+        }
 
         input(f"Move {self} to the middle of its range of motion and press ENTER....")
         homing_offsets = self.bus.set_half_turn_homings()
