@@ -24,5 +24,9 @@ from ..config import TeleoperatorConfig
 class GelloConfig(TeleoperatorConfig):
     # Port to connect to the arm
     port: str
+    serial_number: str
 
     end_effector_open_pos: float = 50.0
+
+    def __post_init__(self):
+        self.id = self.serial_number

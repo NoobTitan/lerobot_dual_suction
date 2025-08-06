@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+import io
 import logging
 import time
 
@@ -42,6 +44,14 @@ class Gello(Teleoperator):
     def __init__(self, config: GelloConfig):
         super().__init__(config)
         self.config = config
+
+        if self.config.serial_number is not None:
+            self.config.port = self.discover_device(self.config.serial_number)
+        elif self.config.port is not None:
+            logger.warning("No serial_number specified, this is discouraged. Port numbers are not bind to specific devices and would change between runs.")
+            self.config.serial_number = self.reverse_discover_device(self.config.port)
+            self.config.id = self.config.serial_number
+
         self.bus = DynamixelMotorsBus(
             port=self.config.port,
             motors={
@@ -55,6 +65,101 @@ class Gello(Teleoperator):
             },
             calibration=self.calibration,
         )
+
+    @staticmethod
+    def reverse_discover_device(port):
+        """ find device serial by port """
+
+        sys_bus = "/sys/bus/usb/devices"
+        usb_dev = os.listdir(sys_bus)
+
+        _, dev_name = os.path.split(port)  # dev_name == "ttyUSB*"
+
+        assert dev_name.startswith("ttyUSB")
+
+        for dev_id in usb_dev:
+            if ":" in dev_id:  # usb device function
+                continue
+
+            dev_path = os.path.join(sys_bus, dev_id)
+            f_serial = os.path.join(dev_path, "serial")
+
+            if not os.path.exists(f_serial):
+                continue
+
+            with io.open(f_serial) as f:
+                dev_serial = f.read().strip()
+
+            for fn in os.listdir(dev_path):
+                if not fn.startswith(dev_id + ":"):
+                    continue
+
+                fn_path = os.path.join(sys_bus, dev_id, fn)
+                if not os.path.isdir(fn_path):
+                    continue
+
+                devfs_files = os.listdir(fn_path)
+
+                if dev_name in devfs_files:
+                    pass
+
+                return dev_serial
+
+        raise ValueError(f"could not determine the serial number for port `{port}`.")
+
+    @staticmethod
+    def discover_device(serial_number):
+        """ find device port by its serial """
+
+        sys_bus = "/sys/bus/usb/devices"
+        usb_dev = os.listdir(sys_bus)
+
+        found_serial_match = False
+
+        for dev_id in usb_dev:
+            if ":" in dev_id:  # usb device function
+                continue
+
+            dev_path = os.path.join(sys_bus, dev_id)
+            f_serial = os.path.join(dev_path, "serial")
+
+            if not os.path.exists(f_serial):
+                continue
+
+            with io.open(f_serial) as f:
+                dev_serial = f.read().strip()
+
+            if dev_serial != serial_number:
+                # This is not the device we searched for.
+                continue
+
+            found_serial_match = True
+
+            for fn in os.listdir(dev_path):
+                if not fn.startswith(dev_id + ":"):
+                    continue
+
+                fn_path = os.path.join(sys_bus, dev_id, fn)
+                if not os.path.isdir(fn_path):
+                    continue
+
+                devfs_files = os.listdir(fn_path)
+                tty_list = list(filter(
+                    lambda x: x.startswith("ttyUSB") and len(x) > len("ttyUSB"),
+                    devfs_files
+                ))
+
+                if len(tty_list) == 0:
+                    # not a ttyUSB device/function.
+                    continue
+
+                tty_list.sort()
+                return f"/dev/{tty_list[0]}"
+
+        if found_serial_match:
+            raise ValueError(f"The device with serial number `{serial_number}` is found, but it is not a ttyUSB device.")
+
+        raise ValueError(f"Could not find the device with serial number: `{serial_number}`.")
 
     @property
     def action_features(self) -> dict[str, type]:
