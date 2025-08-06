@@ -14,6 +14,7 @@
 
 from .config import TeleoperatorConfig
 from .teleoperator import Teleoperator
+from lerobot.robots import Robot
 
 
 def make_teleoperator_from_config(config: TeleoperatorConfig) -> Teleoperator:
@@ -71,3 +72,23 @@ def make_teleoperator_from_config(config: TeleoperatorConfig) -> Teleoperator:
         return Gello(config)
     else:
         raise ValueError(config.type)
+
+
+def teleop_apply_combination_config(cfg: TeleoperatorConfig, teleop: Teleoperator, robot: Robot):
+    # robot_name = robot.name + "/" + robot.id
+
+    if teleop.name not in cfg.combinations:
+        raise ValueError(f"No combinations defined for teleoperator type: {teleop.name}.")
+
+    if teleop.id not in cfg.combinations[teleop.name]:
+        raise ValueError(f"No combinations defined for teleoperator device: {teleop.name}[id={teleop.id}].")
+
+    if robot.name not in cfg.combinations[teleop.name][teleop.id]:
+        raise ValueError(f"No combinations defined for this teleoperator ({teleop.name}[id={teleop.id}]) and this robot type [id={robot.name}]")
+
+    if robot.id not in cfg.combinations[teleop.name][teleop.id][robot.name]:
+        raise ValueError(f"No combinations defined for this teleoperator-robot pair: {teleop.name}[id={teleop.id}] + {robot.name}[id={robot.id}]")
+
+    overrides = cfg.combinations[teleop.name][teleop.id][robot.name][robot.id]
+    cfg.__dict__.update(overrides)
+

@@ -95,6 +95,7 @@ from lerobot.teleoperators import (  # noqa: F401
     homunculus,
     koch_leader,
     make_teleoperator_from_config,
+    teleop_apply_combination_config,
     so100_leader,
     so101_leader,
     gello,
@@ -332,6 +333,9 @@ def record(cfg: RecordConfig) -> LeRobotDataset:
 
     # Load pretrained policy
     policy = None if cfg.policy is None else make_policy(cfg.policy, ds_meta=dataset.meta)
+
+    if robot is not None and teleop is not None:
+        teleop_apply_combination_config(cfg.teleop, teleop, robot)
 
     robot.connect()
     if teleop is not None:

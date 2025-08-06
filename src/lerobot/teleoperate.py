@@ -81,6 +81,7 @@ from lerobot.teleoperators import (  # noqa: F401
     homunculus,
     koch_leader,
     make_teleoperator_from_config,
+    teleop_apply_combination_config,
     so100_leader,
     so101_leader,
     gello,
@@ -155,6 +156,8 @@ def teleoperate(cfg: TeleoperateConfig):
 
     teleop = make_teleoperator_from_config(cfg.teleop)
     robot = make_robot_from_config(cfg.robot)
+
+    teleop_apply_combination_config(cfg.teleop, teleop, robot)  # before connect.
 
     teleop.connect()
     robot.connect()

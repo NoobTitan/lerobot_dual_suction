@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import abc
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import draccus
@@ -25,6 +25,34 @@ class TeleoperatorConfig(draccus.ChoiceRegistry, abc.ABC):
     id: str | None = None
     # Directory to store calibration file
     calibration_dir: Path | None = None
+
+    combinations: dict = field(default_factory=lambda: {
+        "gello": {
+            "FTAN1LRN": {
+                "cs66": {
+                    "192.168.101.11": {
+                        "joint_offsets": {
+                            "joint_1": 0.0,
+                            "joint_2": -90.0,
+                            "joint_3": 0.0,
+                            "joint_4": -90.0,
+                            "joint_5": 0.0,
+                            "joint_6": 0.0,
+                        },
+                        "joint_inversions": {
+                            "joint_1": 0,
+                            "joint_2": 1,
+                            "joint_3": 1,
+                            "joint_4": 1,
+                            "joint_5": 0,
+                            "joint_6": 0,
+                        },
+                    },
+                },
+            }, 
+        },
+    })
+
 
     @property
     def type(self) -> str:
