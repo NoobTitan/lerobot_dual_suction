@@ -30,3 +30,7 @@ class EliteCS66Config(RobotConfig):
     dt = 1 / 25  # 25Hz
     lookahead_time = 1/5
     gain = 300
+
+    def __post_init__(self):
+        self.id = self.ip
+        return super().__post_init__()

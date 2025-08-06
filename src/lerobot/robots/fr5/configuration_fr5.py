@@ -26,3 +26,7 @@ class FairinoV5Config(RobotConfig):
     ip: str = "192.168.101.10"
 
     cameras: dict[str, CameraConfig] = field(default_factory=dict)
+
+    def __post_init__(self):
+        self.id = self.ip
+        return super().__post_init__()

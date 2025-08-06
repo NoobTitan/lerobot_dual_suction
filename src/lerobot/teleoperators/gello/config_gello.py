@@ -28,8 +28,8 @@ from lerobot.motors.dynamixel import (
 @dataclass
 class GelloConfig(TeleoperatorConfig):
     # Port to connect to the arm
-    port: str
-    serial_number: str
+    port: str = None
+    serial_number: str = None
 
     end_effector_open_pos: float = 50.0
 
