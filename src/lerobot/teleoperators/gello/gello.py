@@ -278,6 +278,11 @@ class Gello(Teleoperator):
         start = time.perf_counter()
         action = self.bus.sync_read("Present_Position")
         action = {f"{motor}.pos": val for motor, val in action.items()}
+
+        # apply offset.
+        for key in action:
+            action[key] = action[key] + self.config.joint_offsets.get(key, 0)
+
         dt_ms = (time.perf_counter() - start) * 1e3
         logger.debug(f"{self} read action: {dt_ms:.1f}ms")
         return action

@@ -33,6 +33,18 @@ class GelloConfig(TeleoperatorConfig):
 
     end_effector_open_pos: float = 50.0
 
+    # 关节偏移量，按 joint 名称映射偏移值
+    # the default value is for cs66.
+    # the value is robot dependent, see teleoperate.py: TeleoperateConfig.combinations
+    joint_offsets: Dict[str, float] = field(default_factory=lambda: {
+        "joint_1": 0.0,
+        "joint_2": -90.0,
+        "joint_3": 0.0,
+        "joint_4": -90.0,
+        "joint_5": 0.0,
+        "joint_6": 0.0,
+    })
+
     # This is used during calibration.
     # /!\ IMPORTANT: Redo calibration if this is changed.
     joint_inversions: Dict[str, DriveMode] = field(default_factory=lambda: {

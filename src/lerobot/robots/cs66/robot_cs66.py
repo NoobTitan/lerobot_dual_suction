@@ -204,6 +204,13 @@ class EliteCS66(Robot):
         logger.info(f"{self} disconnected.")
 
     def send_action(self, action: dict[str, float]) -> dict[str, float]:
+        """
+            action: Dict[
+                "joint_1.pos" | "joint_2.pos" | "joint_3.pos" | "joint_4.pos" | "joint_5.pos" | "joint_6.pos", 
+                float
+            ]: robot joint space value in degrees.
+        """
+
         if not self.is_connected:
             raise DeviceNotConnectedError(f"{self} is not connected.")
         
@@ -222,10 +229,9 @@ class EliteCS66(Robot):
         
         for i, key in enumerate(joint_keys):
             if key in action:
-                goal_deg = float(action[key])+ self.config.joint_offsets.get(key.split('.')[0], 0.0)
+                goal_deg = action[key]
                 present_deg = np.rad2deg(joint_states[i])  # 当前角度从弧度转为角度
                 goal_present_pos[key] = (goal_deg, present_deg)
-        #TODO
 
         # 应用安全限制（单位：角度）
         safe_goal_positions = ensure_safe_goal_position(
@@ -280,7 +286,7 @@ class EliteCS66(Robot):
         #         time.sleep(0.05)
 
         # robot_joints = [
-        #     float(action[key]) + self.config.joint_offsets.get(key.split('.')[0], 0.0) for key in joint_keys if key in action
+        #     float(action[key]) for key in joint_keys if key in action
         # ]
         # 调试用，不send action给机器人
         # print(f"{self} got goal pose: {robot_joints}")
@@ -308,8 +314,8 @@ class EliteCS66(Robot):
         #     self.config.gain,
         # ))
 
-        # 目前没有设置安全限值，执行的输入值和输出值可以看作一致
-        return action
+        # 实际执行的输出值应为经过安全限位的输入值
+        return safe_goal_positions
         # return command_dict
         
         

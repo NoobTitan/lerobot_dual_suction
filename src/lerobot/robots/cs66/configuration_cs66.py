@@ -24,18 +24,8 @@ from ..config import RobotConfig
 class EliteCS66Config(RobotConfig):
     # A connection is established with the robot controller. 
     ip: str = "192.168.101.11"
-    
-    cameras: dict[str, CameraConfig] = field(default_factory=dict)
 
-    # 关节偏移量，按 joint 名称映射偏移值
-    joint_offsets: Dict[str, float] = field(default_factory=lambda: {
-        "joint_1": 0.0,
-        "joint_2": -90.0,
-        "joint_3": 0.0,
-        "joint_4": -90.0,
-        "joint_5": 180.0,
-        "joint_6": 0.0,
-    })
+    cameras: dict[str, CameraConfig] = field(default_factory=dict)
 
     dt = 1 / 25  # 25Hz
     lookahead_time = 1/5

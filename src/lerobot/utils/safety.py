@@ -27,18 +27,16 @@ def sync_pose_slow(teleop: Teleoperator, robot: Robot, fps: int, wait_homing=Fal
         THRESHOLD = 30
         while home_timer < HOLD_TIME:
             loop_start = time.perf_counter() 
-            action = teleop.get_action()  # degrees
+            action = teleop.get_action()  # degrees, robot space
 
             within_range_next = True
             for key in action:
                 if not (key.startswith("joint_") and key.endswith(".pos")):
                     continue
 
-                j_offset = robot.config.joint_offsets.get(key.split('.')[0], 0.0)
-                action_compensated = action[key] + j_offset  # -> gello space
-                print(key, action_compensated)
-                within_range_next &= abs(homing_position[key] - action_compensated) < THRESHOLD / 2
-        
+                print(key, action[key])
+                within_range_next &= abs(homing_position[key] - action[key]) < THRESHOLD / 2
+
             loop_time = time.perf_counter() - loop_start
 
             if not within_range_next:
@@ -60,25 +58,22 @@ def sync_pose_slow(teleop: Teleoperator, robot: Robot, fps: int, wait_homing=Fal
     while max_joint_diff > 1:
         loop_start = time.perf_counter()
         observation = robot.get_observation()  # radians, robot space
-        action = teleop.get_action()  # degrees, gello space
+        action = teleop.get_action()  # degrees, robot space
         
-        # there are offsets between gello space and robot space, read from robot.config.joint_offsets and compensate
-
         max_joint_diff = 0
         for key in action:
             if not (key.startswith("joint_") and key.endswith(".pos")):
                 continue
 
-            joffset = robot.config.joint_offsets.get(key.split('.')[0], 0.0)  # degrees
-            action_value = action[key] + joffset  # gello space -> robot space
+            action_value = action[key]  # robot space
             jpose_value = observation[key] / math.pi * 180  # robot space
-            j_diff = action_value - jpose_value  # 
+            j_diff = action_value - jpose_value
             
             jdiff_sign = (j_diff >= 0) * 2 - 1
             jdiff_abs = abs(j_diff)
             # jupdate = jdiff_sign * max(jdiff_abs, jdiff_abs / 10)
             max_joint_diff = max(max_joint_diff, jdiff_abs)
-            action[key] = jpose_value + min((50 / fps), jdiff_abs / 10) * jdiff_sign - joffset  # robot space -> gello space 
+            action[key] = jpose_value + min((50 / fps), jdiff_abs / 10) * jdiff_sign  # robot space 
 
         robot.send_action(action)
         loop_time = time.perf_counter() - loop_start

@@ -169,7 +169,7 @@ class FairinoV5(Robot):
         
         for i, key in enumerate(joint_keys):
             if key in action:
-                goal_deg = float(action[key])+ self.config.joint_offsets.get(key.split('.')[0], 0.0)
+                goal_deg = float(action[key])
                 goal_present_pos[key] = (goal_deg, joint_states[i])
 
         safe_goal_positions = ensure_safe_goal_position(goal_present_pos, max_relative_target=180 * dt)
@@ -184,7 +184,7 @@ class FairinoV5(Robot):
         #########################################################
         #  简单控制，发送接收到的关节位置指令，没有增加安全行程保护
         # cmd_robot_joints = [
-        #     float(action[key]) + self.config.joint_offsets.get(key.split('.')[0], 0.0) for key in joint_keys if key in action
+        #     float(action[key]) for key in joint_keys if key in action
         # ]
         #########################################################
         
@@ -201,7 +201,7 @@ class FairinoV5(Robot):
         self.robot.ServoJ(cmd_robot_joints, epos, cmdT=dt)
 
         print(cmd_robot_joints)
-        return action
+        return safe_goal_positions
         # return cmd_robot_joints
 
 
