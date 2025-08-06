@@ -175,7 +175,7 @@ class Gello(Teleoperator):
 
     def check_drive_mode_consistency(self) -> None:
         drive_mode_consistency = True
-        for motor_id in self.calibration:            
+        for motor_id in self.calibration:
             drive_mode_consistency &= (self.calibration[motor_id].drive_mode == self.config.joint_inversions[motor_id])
 
         if not drive_mode_consistency:
@@ -192,7 +192,7 @@ class Gello(Teleoperator):
         self.bus.connect()
         for motor_id in self.bus.motors:
             # drive mode is handled by software.
-            self.bus.write("Drive_Mode", motor_id, DriveMode.NON_INVERTED.value)
+            self.bus.write("Drive_Mode", motor_id, self.config.joint_inversions[motor_id])
 
         if not self.is_calibrated and calibrate:
             self.calibrate()
@@ -281,7 +281,7 @@ class Gello(Teleoperator):
 
         # apply offset.
         for key in action:
-            action[key] = action[key] + self.config.joint_offsets.get(key, 0)
+            action[key] = action[key] + self.config.joint_offsets.get(key.split(".")[0], 0)
 
         dt_ms = (time.perf_counter() - start) * 1e3
         logger.debug(f"{self} read action: {dt_ms:.1f}ms")

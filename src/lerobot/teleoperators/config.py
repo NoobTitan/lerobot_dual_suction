@@ -41,9 +41,9 @@ class TeleoperatorConfig(draccus.ChoiceRegistry, abc.ABC):
                         },
                         "joint_inversions": {
                             "joint_1": 0,
-                            "joint_2": 1,
+                            "joint_2": 0,
                             "joint_3": 1,
-                            "joint_4": 1,
+                            "joint_4": 0,
                             "joint_5": 0,
                             "joint_6": 0,
                         },
