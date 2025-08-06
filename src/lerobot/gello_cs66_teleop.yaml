@@ -4,22 +4,21 @@ robot:
 
   cameras:
     images.top:
-      type: intelrealsense
+      type: intelrealsensedepth
       serial_number_or_name: 346122071690
       width: 640
       height: 480
-      fps: 30
-    images.wrist.top:
-      type: opencv
-      index_or_path: 8
+      fps: 60
+    images.wrist:
+      type: intelrealsensedepth
+      serial_number_or_name: 937422070277
       width: 640
       height: 480
-      fps: 30
+      fps: 60
 
 
 teleop:
   type: gello
-  port: /dev/ttyUSB0
-  id: main_gello
+  serial_number: FTAN1LRN
 
-display_data: true
+display_data: false

@@ -3,33 +3,33 @@ robot:
   ip: 192.168.101.11
 
   cameras:
-    top:
-      type: intelrealsense
+    images.top:
+      type: intelrealsensedepth
       serial_number_or_name: 346122071690
       width: 640
       height: 480
-      fps: 30
-    wrist:
-      type: intelrealsense
+      fps: 60
+    images.wrist:
+      type: intelrealsensedepth
       serial_number_or_name: 937422070277
       width: 640
       height: 480
-      fps: 30
+      fps: 60
     
 teleop:
   type: gello
-  port: /dev/ttyUSB0
-  id: main_gello
+  serial_number: FTAN1LRN
 
-display_data: true
+display_data: false
 resume: true
 
 dataset:
-  repo_id: xdd0225/cs66_record_test
-  num_episodes: 20
-  single_task: test_mission  # 任务类型
+  repo_id: xdd0225/cs66_record_sort
+  num_episodes: 100
+  single_task: stationary  # 任务类型
   episode_time_s: 60          # 每个 episode 持续 60 秒（可选）
   reset_time_s: 10             # 每次结束后等待 10 秒用于手动 reset（可选）
-  push_to_hub: true        # 是否推送到 huggingface hub
+  push_to_hub: false        # 是否推送到 huggingface hub
   # tags: ["dual_arm_test", "test_func"]  # 可选标签
   private: true
+  video_encoding_batch_size: 20
