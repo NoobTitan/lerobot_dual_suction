@@ -245,10 +245,9 @@ class EliteCS66(Robot):
             "joint_6.pos": 230 * self.config.dt * 10,
         })
 
-        # 替换 action 中的目标值
-        for key in safe_goal_positions:
-            action[key] = safe_goal_positions[key]
-        
+        # 替换 action 中的目标值，该值也将被保存进数据集，作为action使用。
+        action.update(safe_goal_positions)
+
         # 发送给机器人的关节命令
         cmd_robot_joints = [
             math.radians(
@@ -315,7 +314,7 @@ class EliteCS66(Robot):
         # ))
 
         # 实际执行的输出值应为经过安全限位的输入值
-        return safe_goal_positions
+        return action
         # return command_dict
         
         

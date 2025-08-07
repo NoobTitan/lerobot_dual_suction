@@ -46,6 +46,7 @@ class TeleoperatorConfig(draccus.ChoiceRegistry, abc.ABC):
                             "joint_4": 0,
                             "joint_5": 0,
                             "joint_6": 0,
+                            "end_effector": 0,
                         },
                     },
                 },
