@@ -1053,6 +1053,229 @@ class LeRobotDataset(torch.utils.data.Dataset):
         return obj
 
 
+class MultiLeRobotDatasetMetadata():
+    def __init__(self, datasets: list[LeRobotDataset]):
+        self.subdataset_meta = [x.meta for x in datasets]
+
+        self.repo_id = "#MultiLeRobotDataset#"
+        self.root = None
+
+        self.episodes = {}
+        self.episodes_stats = {}
+        self.merge_meta()
+
+    @property
+    def revision(self):
+        max_rev = None
+        for x in self.subdataset_meta:
+            rev = None if max_rev is None else packaging.version.parse(rev)
+            v = packaging.version.parse(x.revision)
+            if rev is None or v.major > rev.major or (v.major == rev.major and v.minor > rev.minor):
+                max_rev = x.revision
+        return max_rev
+
+    def merge_stats(self, stats_of_multiple_datasets):
+        def reduce_stat(s1, s2):
+            s1_var = s1["std"] ** 2
+            s1_cnt = s1["count"]
+
+            s2_var = s2["std"] ** 2
+            s2_cnt = s2["count"]
+
+            s1_mean = s1["mean"]
+            s2_mean = s2["mean"]
+
+            adj = s1_cnt * s2_cnt / (s1_cnt + s2_cnt) * (s1_mean - s2_mean) ** 2
+            std = (((s1_cnt - 1) * s1_var + (s2_cnt - 1) * s2_var + adj) / (s1_cnt + s2_cnt - 1)) ** 0.5
+
+            return {
+                "min": np.stack([s1["min"], s2["min"]], axis=0).min(axis=0),
+                "max": np.stack([s1["max"], s2["max"]], axis=0).max(axis=0),
+                "mean": (s1_mean * s1_cnt + s2_mean * s2_cnt) / (s1_cnt + s2_cnt),
+                "std": std,
+                "count": s1_cnt + s2_cnt,
+            }
+
+        shared_keys = None
+        for ds_stats in stats_of_multiple_datasets:
+            if shared_keys is None:
+                shared_keys = set()
+                shared_keys.update(list(ds_stats))
+            
+            shared_keys.intersection_update(list(ds_stats))
+
+        stat = dict(**stats_of_multiple_datasets[0])
+        for key in shared_keys:
+            for item in stats_of_multiple_datasets[1:]:
+                stat[key] = reduce_stat(stat[key], item[key])
+
+        return stat
+
+    def merge_meta(self):
+        n_episodes = 0
+        for x in self.subdataset_meta:
+            self.episodes.update({k + n_episodes: x.episodes[k] for k in x.episodes})
+            self.episodes_stats.update({k + n_episodes: x.episodes_stats[k] for k in x.episodes_stats})
+            n_episodes = len(self.episodes)
+        
+        self.stats = self.merge_stats([x.stats for x in self.subdataset_meta])
+
+    def get_data_file_path(self, ep_index: int) -> Path:
+        ep_chunk = self.get_episode_chunk(ep_index)
+        fpath = self.data_path.format(episode_chunk=ep_chunk, episode_index=ep_index)
+        return Path(fpath)
+
+    def get_video_file_path(self, ep_index: int, vid_key: str) -> Path:
+        ep_chunk = self.get_episode_chunk(ep_index)
+        fpath = self.video_path.format(episode_chunk=ep_chunk, video_key=vid_key, episode_index=ep_index)
+        return Path(fpath)
+
+    def get_episode_chunk(self, ep_index: int) -> int:
+        return ep_index // self.chunks_size
+
+    @property
+    def data_path(self) -> str:
+        """Formattable string for the parquet files."""
+        raise NotImplementedError
+        # return self.info["data_path"]
+
+    @property
+    def video_path(self) -> str | None:
+        """Formattable string for the video files."""
+        raise NotImplementedError
+        # return self.info["video_path"]
+
+    @property
+    def robot_type(self) -> str | None:
+        """Robot type used in recording this dataset."""
+        raise NotImplementedError
+        # return self.info["robot_type"]
+
+    @property
+    def fps(self) -> int:
+        """Frames per second used during data collection."""
+        raise NotImplementedError
+        # return self.info["fps"]
+
+    @property
+    def features(self) -> dict[str, dict]:
+        """All features contained in the dataset."""
+
+        shared_keys = None
+        for ds_meta in self.subdataset_meta:
+            if shared_keys is None:
+                shared_keys = {}
+                shared_keys.update(ds_meta.features)
+            
+            for key in shared_keys:
+                if key not in ds_meta.features:
+                    del shared_keys[key]
+
+        return shared_keys
+        # return self.info["features"]
+
+    @property
+    def image_keys(self) -> list[str]:
+        """Keys to access visual modalities stored as images."""
+        raise NotImplementedError
+        return [key for key, ft in self.features.items() if ft["dtype"] == "image"]
+
+    @property
+    def video_keys(self) -> list[str]:
+        """Keys to access visual modalities stored as videos."""
+        raise NotImplementedError
+        return [key for key, ft in self.features.items() if ft["dtype"] == "video"]
+
+    @property
+    def camera_keys(self) -> list[str]:
+        """Keys to access visual modalities (regardless of their storage method)."""
+        cam_keys = None
+        for x in self.subdataset_meta:
+            if cam_keys is None:
+                cam_keys = set()
+                cam_keys.update(key for key, ft in x.features.items() if ft["dtype"] in ["video", "image"])
+
+            cam_keys.intersection_update(key for key, ft in x.features.items() if ft["dtype"] in ["video", "image"])
+        
+        return list(cam_keys)
+
+    @property
+    def names(self) -> dict[str, list | dict]:
+        """Names of the various dimensions of vector modalities."""
+        raise NotImplementedError
+        return {key: ft["names"] for key, ft in self.features.items()}
+
+    @property
+    def shapes(self) -> dict:
+        """Shapes for the different features."""
+        raise NotImplementedError
+        return {key: tuple(ft["shape"]) for key, ft in self.features.items()}
+
+    @property
+    def total_episodes(self) -> int:
+        """Total number of episodes available."""
+        raise NotImplementedError
+        return self.info["total_episodes"]
+
+    @property
+    def total_frames(self) -> int:
+        """Total number of frames saved in this dataset."""
+        raise NotImplementedError("The metadata of MultiLeRobotDataset (MultiLeRobotDatasetMetadata) is not writable.")
+        return self.info["total_frames"]
+
+    @property
+    def total_tasks(self) -> int:
+        """Total number of different tasks performed in this dataset."""
+        raise NotImplementedError("The metadata of MultiLeRobotDataset (MultiLeRobotDatasetMetadata) is not writable.")
+        return self.info["total_tasks"]
+
+    @property
+    def total_chunks(self) -> int:
+        """Total number of chunks (groups of episodes)."""
+        raise NotImplementedError("The metadata of MultiLeRobotDataset (MultiLeRobotDatasetMetadata) is not writable.")
+        return self.info["total_chunks"]
+
+    @property
+    def chunks_size(self) -> int:
+        """Max number of episodes per chunk."""
+        raise NotImplementedError("The metadata of MultiLeRobotDataset (MultiLeRobotDatasetMetadata) is not writable.")
+        return self.info["chunks_size"]
+
+    def get_task_index(self, task: str) -> int | None:
+        """
+        Given a task in natural language, returns its task_index if the task already exists in the dataset,
+        otherwise return None.
+        """
+        raise NotImplementedError("The metadata of MultiLeRobotDataset (MultiLeRobotDatasetMetadata) is not writable.")
+        return self.task_to_task_index.get(task, None)
+
+    def add_task(self, task: str):
+        raise NotImplementedError("The metadata of MultiLeRobotDataset (MultiLeRobotDatasetMetadata) is not writable.")
+
+    def save_episode(
+        self,
+        episode_index: int,
+        episode_length: int,
+        episode_tasks: list[str],
+        episode_stats: dict[str, dict],
+    ) -> None:
+        raise NotImplementedError("The metadata of MultiLeRobotDataset (MultiLeRobotDatasetMetadata) is not writable.")
+
+    def update_video_info(self) -> None:
+        raise NotImplementedError("The metadata of MultiLeRobotDataset (MultiLeRobotDatasetMetadata) is not writable.")
+
+    def __repr__(self):
+        feature_keys = list(self.features)
+        return (
+            f"{self.__class__.__name__}({{\n"
+            f"    Repository ID: '{self.repo_id}',\n"
+            f"    Total episodes: '{self.total_episodes}',\n"
+            f"    Total frames: '{self.total_frames}',\n"
+            f"    Features: '{feature_keys}',\n"
+            "})',\n"
+        )
+
+
 class MultiLeRobotDataset(torch.utils.data.Dataset):
     """A dataset consisting of multiple underlying `LeRobotDataset`s.
 
@@ -1062,34 +1285,22 @@ class MultiLeRobotDataset(torch.utils.data.Dataset):
 
     def __init__(
         self,
-        repo_ids: list[str],
-        root: str | Path | None = None,
-        episodes: dict | None = None,
-        image_transforms: Callable | None = None,
-        delta_timestamps: dict[list[float]] | None = None,
+        datasets: list[LeRobotDataset],
+        # image_transforms: Callable | None = None,
+        # delta_timestamps: dict[list[float]] | None = None,
         tolerances_s: dict | None = None,
-        download_videos: bool = True,
-        video_backend: str | None = None,
+        # download_videos: bool = True,
+        # video_backend: str | None = None,
     ):
         super().__init__()
-        self.repo_ids = repo_ids
-        self.root = Path(root) if root else HF_LEROBOT_HOME
-        self.tolerances_s = tolerances_s if tolerances_s else dict.fromkeys(repo_ids, 0.0001)
-        # Construct the underlying datasets passing everything but `transform` and `delta_timestamps` which
-        # are handled by this class.
-        self._datasets = [
-            LeRobotDataset(
-                repo_id,
-                root=self.root / repo_id,
-                episodes=episodes[repo_id] if episodes else None,
-                image_transforms=image_transforms,
-                delta_timestamps=delta_timestamps,
-                tolerance_s=self.tolerances_s[repo_id],
-                download_videos=download_videos,
-                video_backend=video_backend,
-            )
-            for repo_id in repo_ids
-        ]
+        self.repo_ids = [x.repo_id for x in datasets]
+        self._datasets = datasets
+        self.root = "/[memory_content]"
+        self.tolerances_s = tolerances_s if tolerances_s else dict.fromkeys(
+            [x.repo_id for x in datasets], 0.0001
+        )
+
+        self.meta = MultiLeRobotDatasetMetadata(self._datasets)
 
         # Disable any data keys that are not common across all of the datasets. Note: we may relax this
         # restriction in future iterations of this class. For now, this is necessary at least for being able
@@ -1110,13 +1321,6 @@ class MultiLeRobotDataset(torch.utils.data.Dataset):
                 "other datasets."
             )
             self.disabled_features.update(extra_keys)
-
-        self.image_transforms = image_transforms
-        self.delta_timestamps = delta_timestamps
-        # TODO(rcadene, aliberts): We should not perform this aggregation for datasets
-        # with multiple robots of different ranges. Instead we should have one normalization
-        # per robot.
-        self.stats = aggregate_stats([dataset.meta.stats for dataset in self._datasets])
 
     @property
     def repo_id_to_index(self):

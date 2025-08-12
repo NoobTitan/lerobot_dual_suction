@@ -82,6 +82,9 @@ def make_dataset(cfg: TrainPipelineConfig) -> LeRobotDataset | MultiLeRobotDatas
         ImageTransforms(cfg.dataset.image_transforms) if cfg.dataset.image_transforms.enable else None
     )
 
+    if isinstance(cfg.dataset.repo_id, list) and len(cfg.dataset.repo_id) == 1:
+        cfg.dataset.repo_id = cfg.dataset.repo_id[0]
+
     if isinstance(cfg.dataset.repo_id, str):
         ds_meta = LeRobotDatasetMetadata(
             cfg.dataset.repo_id, root=cfg.dataset.root, revision=cfg.dataset.revision
@@ -97,13 +100,34 @@ def make_dataset(cfg: TrainPipelineConfig) -> LeRobotDataset | MultiLeRobotDatas
             video_backend=cfg.dataset.video_backend,
         )
     else:
-        raise NotImplementedError("The MultiLeRobotDataset isn't supported for now.")
+        # raise NotImplementedError("The MultiLeRobotDataset isn't supported for now.")
+        ds_meta = [
+            LeRobotDatasetMetadata(
+                repo_id, root=cfg.dataset.root, revision=cfg.dataset.revision
+            )
+            for repo_id in cfg.dataset.repo_id
+        ]
+
+        delta_timestamps = [
+            resolve_delta_timestamps(cfg.policy, meta)
+            for meta in ds_meta
+        ]
+
+        datasets = [
+            LeRobotDataset(
+                repo_id,
+                root=cfg.dataset.root,
+                episodes=cfg.dataset.episodes,
+                delta_timestamps=dts,
+                image_transforms=image_transforms,
+                revision=cfg.dataset.revision,
+                video_backend=cfg.dataset.video_backend,
+            )
+            for repo_id, dts in zip(cfg.dataset.repo_id, delta_timestamps)
+        ]
+
         dataset = MultiLeRobotDataset(
-            cfg.dataset.repo_id,
-            # TODO(aliberts): add proper support for multi dataset
-            # delta_timestamps=delta_timestamps,
-            image_transforms=image_transforms,
-            video_backend=cfg.dataset.video_backend,
+            datasets,
         )
         logging.info(
             "Multiple datasets were provided. Applied the following index mapping to the provided datasets: "
